@@ -459,6 +459,32 @@ mod tests {
     }
 
     #[test]
+    fn test_matmul_diff() {
+        let mut ctx = Context::new();
+
+        let x = ctx.parameter("x", [2,2,2],xla::ElementType::F32).expect("x in matrix");
+        let mat_const = ctx.matrix([[5f32,6f32,7f32],[8f32,9f32,10f32]], xla::ElementType::F32).expect("Const matrix");
+
+        let matmul = ctx.matmul(x, mat_const).expect("matmul");
+        let dydx = ctx.diff(matmul, x).expect("dy/dx");
+
+        let client = xla::PjRtClient::cpu().expect("client");//gpu(0.7, false).expect("client");
+        let name = "test";
+        let executable = ctx.compile(&name, [dydx], &client).expect("executable");
+
+        let x_input = xla::Literal::create_from_shape_and_untyped_data(xla::ElementType::F32, &[2,2,2], &[1,2,3,4,5,6]).expect("input mat");
+
+        let device_result = executable.execute::<Literal>(&[x_input]).expect("execute");
+        let host_result = device_result[0][0]
+            .to_literal_sync()
+            .expect("to_literal_sync");
+        let untupled_result = host_result.to_tuple1().expect("untuple");
+        let rust_result = untupled_result.to_vec::<f32>().expect("to_vec");
+        println!("{:?}", rust_result);
+
+    }
+
+    #[test]
     fn test_tanh_diff() {
         let mut ctx = Context::new();
 
